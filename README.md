@@ -1,6 +1,10 @@
 # tribe-twitter
 
-Native SwiftUI iOS client for the [TribeEco](https://github.com/chaalpritam/tribeeco) decentralized social protocol.
+Native SwiftUI iOS client for the [TribeEco](https://github.com/chaalpritam/TribeEco) decentralized social protocol — Twitter-shaped tabs and navigation.
+
+- **Xcode project:** `TribeTwitter.xcodeproj`
+- **Bundle ID:** `app.tribe.twitter`
+- **Display name:** Tribe Twitter
 
 The visual language is borrowed from `tribeapp.wtf`: a black rounded-pill bottom nav with a floating "+" Create sheet, white card surfaces with a 28-pt corner radius, monochrome primary actions, and quiet semantic accents (indigo for polls, amber for warnings, emerald for success, rose for unread badges).
 
@@ -59,7 +63,7 @@ iPhone-only, portrait-only mobile app. iPad and landscape layouts are intentiona
 | Explore (people) | ✅ | Live follow status (read-only — see below) |
 | Search (cross-primitive) | ✅ | — |
 | Tribes → Channels | ✅ | Create channel (interest / city), open channel feed |
-| Tribes → Map | ✅ | — (city channels + located events on MapKit) |
+| Tribes → Map | ✅ | City channels + located events on MapKit |
 | Tribes → Polls | ✅ | Create poll, vote |
 | Tribes → Events | ✅ | Create event, RSVP yes / maybe / no |
 | Tribes → Tasks | ✅ | Create task, claim, complete |
@@ -72,7 +76,7 @@ iPhone-only, portrait-only mobile app. iPad and landscape layouts are intentiona
 | Wallet → Activity | ✅ | — |
 | Settings | ✅ | Switch hub, switch ER server, view app key, sign out |
 
-Every write builds a signed envelope locally — BLAKE3 hashing (pure-Swift port of the reference implementation, with self-test vectors that run at launch) and ed25519 signing via Apple CryptoKit's `Curve25519`. The seed lives in the iOS Keychain (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`); UserDefaults only stores the hub URL, the ER server URL, and the public TID number.
+Every write builds a signed envelope locally — BLAKE3 hashing and ed25519 signing via [`tribe-core-swift`](../tribe-core-swift) (`TribeCore`). The seed lives in the iOS Keychain with a per-app service namespace (`app.tribe.twitter`); UserDefaults only stores the hub URL, the ER server URL, and the public TID number.
 
 DMs use a separate x25519 keypair (also in the Keychain) plus a pure-Swift port of `nacl.box` (Salsa20 core, XSalsa20 stream, Poly1305 MAC) so ciphertext written here is byte-compatible with what tweetnacl produces in tribe-twitter-app. `NaClBox.selfTest()` round-trips at launch.
 
@@ -120,36 +124,18 @@ To wire the app to your TID, paste it into the same Settings sheet. The notifica
 ```
 TribeTwitter/                         Xcode app target
   TribeTwitterApp.swift               @main entry
-  Info.plist                         App Transport Security off so http://hub-ip works in dev
-  Assets.xcassets                    AccentColor (black) + AppIcon
+  Info.plist                          App Transport Security off so http://hub-ip works in dev
+  Assets.xcassets                     AccentColor (black) + AppIcon
 
 Sources/
-  Config.swift                       defaultHubURL + defaultERURL + Solana cluster
-  TribeShims.swift                   typealiases User → HubUser (TribeCore naming)
-  State/
-    AppState.swift                   persisted hub URL + TID + shared HubClient + ERClient + DMKey
-    InteractionCache.swift           session-scoped like / bookmark sets
-
-  Views/                             SwiftUI screens (see below)
-
-  Views/
-    Shell/        RootView + BottomNavBar (tribeapp.wtf-style pill nav)
-    Home/         HomeFeedView + TweetCardView + TweetDetailView
-    Explore/      ExploreView (user list with FollowButton)
-    Search/       SearchView (cross-primitive)
-    Notifications/  NotificationsView (sheet from Home bell)
-    Channels/     TribesHubView + ChannelsView + ChannelFeedView + ChannelMapView + CreateChannelSheet
-    Polls/        PollsView + CreatePollSheet
-    Events/       EventsView + CreateEventSheet
-    Tasks/        TasksView + CreateTaskSheet
-    Crowdfunds/   CrowdfundsView + CreateCrowdfundSheet
-    Messages/     MessagesView + DMThreadView + NewDMSheet
-    Profile/      ProfileView + ProfileEditorView (opens Wallet/Settings)
-    Wallet/       WalletView + QRCodeView + ReceiveSheet
-    Settings/     Hub URL + ER URL + TID
-    Onboarding/   Welcome → Configure Hub → Pair / Import / Create identity
-    Common/       Card, AvatarView, FollowButton, EmptyStateView, RelativeTime, Pill, Slug, …
+  Config.swift                        defaultHubURL + defaultERURL + Solana cluster
+  TribeShims.swift                    typealiases User → HubUser (TribeCore naming)
+  State/                              AppState, InteractionCache, …
+  Views/                              SwiftUI screens (Home, Explore, Tribes, Messages, …)
+  API/                                Local hub/ER wrappers where not yet on TribeCore
 ```
+
+Crypto, shared models, and hub clients live in [`tribe-core-swift`](../tribe-core-swift). `Blake3.selfTest()` and `NaClBox.selfTest()` run at launch from `AppState`.
 
 ## Project file: xcodegen + committed `.xcodeproj`
 
@@ -163,17 +149,23 @@ When you add new Swift files, you don't need to do anything: Xcode picks them up
 
 | Repo | Role |
 |---|---|
-| [tribe-protocol](../tribe-protocol) | Solana programs — identity, app keys, social graph, registries |
-| [tribe-sdk](../tribe-sdk) | TypeScript SDK shared by web clients |
-| [tribe-hub](../tribe-hub) | Decentralized hub — message storage, indexing, gossip |
-| [tribe-er-server](../tribe-er-server) | Ephemeral Rollup sequencer — instant follows |
-| [tribe-twitter-app](../tribe-twitter-app) | Next.js reference client |
-| [tribeapp.wtf](../tribeapp.wtf) | Consumer-facing web app + landing page |
+| [TribeEco](https://github.com/chaalpritam/TribeEco) | Monorepo — protocol stack, clients, deploy tooling |
+| [tribe-protocol](../tribe-protocol) | Solana programs (Anchor) — identity, social graph, registries |
+| [tribe-sdk](../tribe-sdk) | TypeScript SDK — DirectSolana and EphemeralRollup providers |
+| [tribe-hub](../tribe-hub) | Decentralized hub — message storage, Solana indexer, gossip sync |
+| [tribe-er-server](../tribe-er-server) | Ephemeral Rollup sequencer — instant follows, L1 settlement |
+| [tribe](../tribe) | Native SwiftUI hyperlocal iOS app (`app.tribe.app`) — city/channel feeds, explore, map, tribes |
+| [tribe-twitter](../tribe-twitter) | Native SwiftUI Twitter-shaped iOS app (`app.tribe.twitter`) |
+| [tribe-insta](../tribe-insta) | Native SwiftUI Instagram-shaped iOS app — photos, stories, reels |
+| [tribe-twitter-app](../tribe-twitter-app) | Next.js reference web client |
+| [tribeapp.wtf](../tribeapp.wtf) | Consumer hyperlocal web app + landing page |
+| [tribe-core-swift](../tribe-core-swift) | Shared Swift package — crypto, hub API, models (see `MIGRATION.md`) |
+| [homebrew-tap](../homebrew-tap) | Homebrew formulas — `brew install tribe`, `brew install tribe-twitter-app` |
 
 ## What's next
 
 - Wrap the Solana on-chain helpers (TID register, follow/unfollow, on-chain tip) using a Solana mobile / WalletConnect provider. Until that lands, on-chain settlement is the only piece left for full feature parity with tribe-twitter-app.
-- Group DMs (DM_GROUP_CREATE / DM_GROUP_SEND). The 1:1 path is wired up; group fan-out encryption follows the same pattern (encrypt the same plaintext once per recipient with their x25519 pubkey).
+- Group DMs (DM_GROUP_CREATE / DM_GROUP_SEND). The 1:1 path is wired up; group fan-out encryption follows the same pattern.
 - Native iOS share sheet → quick-compose tweet from any other app.
 
 ## Crypto
@@ -188,19 +180,8 @@ signature = base64( ed25519_sign(hash, app_key) ) // 64 bytes
 signer  = base64( ed25519_public_key )            // 32 bytes
 ```
 
-Crypto, API clients, and shared protocol models live in the [tribe-core-swift](../tribe-core-swift) package (`TribeCore`). The app target depends on it via `Project.yml` and imports it where needed. `Blake3.selfTest()` and `NaClBox.selfTest()` run at launch from `AppState`.
+Implemented in [`tribe-core-swift`](../tribe-core-swift) (`MessageSigner`, `Blake3`, `NaClBox`). `Blake3.selfTest()` and `NaClBox.selfTest()` run at launch from `AppState`.
 
-## Related Repos
+## License
 
-| Repo | Description |
-|------|-------------|
-| [tribe-protocol](../tribe-protocol) | Solana programs (Anchor) — 12 programs: tid-registry, app-key-registry, username-registry, social-graph w/ ER delegation, hub-registry, tip-registry, crowdfund-registry, task-registry, channel-registry, karma-registry, poll-registry, event-registry |
-| [tribe-sdk](../tribe-sdk) | TypeScript SDK — DirectSolana and EphemeralRollup providers; clients for identity, tweets, DMs, profiles, channels, bookmarks, polls, events, tasks, crowdfunds, tips, search |
-| [tribe-hub](../tribe-hub) | Decentralized hub — signed-message storage + Solana indexer + gossip peer sync; REST + WebSocket APIs |
-| [tribe-er-server](../tribe-er-server) | Ephemeral Rollup sequencer — instant follows, batched L1 settlement every 10s |
-| [tribe-twitter-app](../tribe-twitter-app) | Next.js frontend — protocol-first reference client with multi-node failover |
-| [tribeapp.wtf](../tribeapp.wtf) | Consumer-facing web app + landing page at tribeapp.wtf — hyperlocal social built entirely on the protocol |
-| [tribe-twitter](../tribe-twitter) | Native SwiftUI iOS client (Twitter-shaped) — full read/write against hub + ER, NaCl-box DMs, BLAKE3 + ed25519 signing via Apple CryptoKit |
-| [tribe-insta](../tribe-insta) | Native SwiftUI iOS client (Instagram-shaped) — photo grid, stories, reels; same hub + envelope format as tribe-twitter. Scaffolding stage — see `tribe-insta/PLAN.md` |
-| [tribe-core-swift](../tribe-core-swift) | Shared Swift package consumed by tribe-twitter + tribe-insta — crypto, API clients (HubClient, ERClient), protocol models, envelope signing. See `tribe-core-swift/MIGRATION.md` |
-| [homebrew-tap](../homebrew-tap) | Homebrew formulas: `brew install tribe` (hub + ER) and `brew install tribe-twitter-app` (demo UI) |
+MIT
